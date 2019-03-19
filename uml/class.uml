@@ -1,0 +1,42 @@
+@startuml
+'accessibilité
+skinparam classAttributeIconSize 0
+ 
+'pas d'ombre
+skinparam shadowing false
+ 
+'taille de l'image
+skinparam dpi 100
+ 
+'couleurs
+skinparam class {
+  BackgroundColor AliceBlue
+  ArrowColor CornflowerBlue
+  BorderColor CornflowerBlue
+}
+skinparam stereotypeCBackgroundColor OldLace
+
+
+package be.detobel36.mtabarefoot {
+    class MTABarefoot
+    class CustomTrackServer
+    class MatcherResponseFactory
+}
+
+package com.bmwcarit.barefoot {
+    package util {
+        class AbstractServer
+        class ResponseFactory
+    }
+
+    package matcher {
+        class Matcher
+    }
+}
+
+
+MTABarefoot --> CustomTrackServer
+CustomTrackServer --> MatcherResponseFactory
+CustomTrackServer --|> AbstractServer
+MatcherResponseFactory --|> ResponseFactory
+@enduml

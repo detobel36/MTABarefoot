@@ -1,0 +1,33 @@
+@startuml
+'pas d'ombre
+skinparam shadowing false
+
+skinparam dpi 100
+
+skinparam sequence {
+  ArrowColor CornflowerBlue
+  LifeLineBorderColor CornflowerBlue
+  LifeLineBackgroundColor AliceBlue
+
+  ParticipantBorderColor CornflowerBlue
+  ParticipantBackgroundColor AliceBlue
+
+  ActorBackgroundColor LightGray
+  ActorFontColor SlateGray
+  actorBorderColor SlateGray
+}
+
+activate MTABarefoot
+MTABarefoot -> CustomTrackServer
+activate CustomTrackServer
+
+CustomTrackServer -> MatcherResponseFactory
+activate MatcherResponseFactory
+
+MatcherResponseFactory -> Matcher
+activate Matcher
+
+MTABarefoot -> CustomTrackServer : runServer
+
+
+@enduml
