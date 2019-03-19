@@ -28,3 +28,7 @@ In parameter you can choose the track and the database properties. The last para
 
 The first one allow different system to send information (in socket). The second will fetch automatically information on MTA servers.
 
+
+## Install Barefoot
+
+The script `barefoot.sh` allow to install an launch Barefoot.  Note that, currently, this script doesn't launch MTABarefoot.
