@@ -1,8 +1,8 @@
 package be.detobel36.mtabarefoot;
 
-import be.detobel36.mtabarefoot.input_server.SocketFetchData;
 import be.detobel36.mtabarefoot.input_server.CustomTrackServer;
 import be.detobel36.mtabarefoot.input_server.MTAFetchData;
+import be.detobel36.mtabarefoot.input_server.SocketFetchData;
 import be.detobel36.mtabarefoot.publisher.StatePublisherExternalTcp;
 import be.detobel36.mtabarefoot.publisher.StatePublisherPostgreSQL;
 import com.bmwcarit.barefoot.roadmap.Loader;
@@ -30,6 +30,7 @@ public class MTABarefoot {
     private static CustomTrackServer trackerServer = null;
     private static TemporaryMemory.Publisher<CustomTrackServer.State> outputPublisher;
     
+    private static boolean view_query = false;
     
     private static void initServer(final String pathServerProperties, final String pathDatabaseProperties,
             final String typeServerInput, final String typeServerOutput) {
@@ -165,6 +166,14 @@ public class MTABarefoot {
     
     public static String getRequestPath() {
         return requestPath;
+    }
+    
+    public static void switchViewQuery() {
+        view_query = !view_query;
+    }
+    
+    public static boolean viewQuery() {
+        return view_query;
     }
     
 }

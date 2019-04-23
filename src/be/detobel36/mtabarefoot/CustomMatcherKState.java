@@ -238,8 +238,15 @@ public class CustomMatcherKState extends MatcherKState {
         final HashMap<String, String> result = new HashMap<String, String>();
         
         final List<MatcherSample> listSamples = samples();
+        if(listSamples == null || listSamples.isEmpty()) {
+            return result;
+        }
         final MatcherSample lastSample = listSamples.get(listSamples.size()-1);
         final MatcherCandidate estimatePoint = estimate();
+        
+        if(lastSample instanceof CustomMatcherSample) {
+            result.putAll(((CustomMatcherSample) lastSample).getAllInformations());
+        }
         
         result.put("time", "" + lastSample.time());
         result.put("point", GeometryEngine.geometryToWkt(estimatePoint.point().geometry(),

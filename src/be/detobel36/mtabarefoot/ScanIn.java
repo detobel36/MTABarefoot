@@ -28,9 +28,13 @@ public class ScanIn extends Thread {
                     MTABarefoot.reloadOutput();
                     break;
                 
+                case "view_query":
+                    MTABarefoot.switchViewQuery();
+                    break;
+                    
                 case "help":
                 default:
-                    logger.info("Usage: help|reload_output");
+                    logger.info("Usage: help|reload_output|view_query");
                     break;
             }
         }

@@ -13,11 +13,10 @@ import org.json.JSONObject;
  */
 public class CustomMatcherSample extends MatcherSample {
     
-    private HashMap<String, String> allInformations;
+    private final HashMap<String, String> allInformations = new HashMap<>();
     
     public CustomMatcherSample(long time, Point point) {
         super(time, point);
-        allInformations = new HashMap<>();
     }
     
     public CustomMatcherSample(final GtfsRealtime.FeedEntity feed) {
@@ -40,11 +39,15 @@ public class CustomMatcherSample extends MatcherSample {
             }
         }
         if(vehicle.hasPosition() && vehicle.getPosition().hasBearing()) {
-            allInformations.put("route_id", "" + vehicle.getPosition().getBearing());
+            allInformations.put("bearing", "" + vehicle.getPosition().getBearing());
         }
         if(vehicle.hasStopId()) {
             allInformations.put("stop_id", "" + vehicle.getStopId());
         }
+    }
+    
+    public HashMap<String, String> getAllInformations() {
+        return allInformations;
     }
     
     public CustomMatcherSample(final JSONObject json) throws JSONException {

@@ -104,7 +104,9 @@ public class StatePublisherPostgreSQL implements TemporaryMemory.Publisher<Custo
             String strRequest = request.getKey();
             strRequest = addValueToQuery(pointInfos, strRequest);
             if(!strRequest.equals("")) {
-                logger.info("Req :" + strRequest);
+                if(MTABarefoot.viewQuery()) {
+                    logger.info("Req :" + strRequest);
+                }
                 try {
                     if(request.getValue()) { // If select
                         final ResultSet result = postgresSource.getResultSet(strRequest);
@@ -117,7 +119,10 @@ public class StatePublisherPostgreSQL implements TemporaryMemory.Publisher<Custo
                             }
                             strResult += ";";
                         }
-                        logger.info("Result: " + strResult);
+                        if(MTABarefoot.viewQuery()) {
+                            logger.info("Result: " + strResult);
+                        }
+                        
 
                     } else {
                         postgresSource.execute(strRequest);
@@ -127,9 +132,11 @@ public class StatePublisherPostgreSQL implements TemporaryMemory.Publisher<Custo
                 }
             }
         });
-
-        logger.info(pointInfos.toString());
-
+        
+        if(MTABarefoot.viewQuery()) {
+            logger.info(pointInfos.toString());
+        }
+        
     }
     
     private String addValueToQuery(final HashMap<String, String> pointInfos, String query) {
