@@ -33,7 +33,7 @@ import com.bmwcarit.barefoot.util.Tuple;
  * Memory class for storing elements temporarily by defining a time to live (TTL). This class is a
  * work-around solution and will be very likely replaced in future releases.
  */
-class TemporaryMemory<E extends TemporaryElement<E>> {
+public class TemporaryMemory<E extends TemporaryElement<E>> {
     private final static Logger logger = LoggerFactory.getLogger(TemporaryMemory.class);
     private final Map<String, E> map = new HashMap<>();
     private final Queue<Tuple<Long, E>> queue =
@@ -81,6 +81,11 @@ class TemporaryMemory<E extends TemporaryElement<E>> {
         public abstract void publish(String id, E element);
 
         public abstract void delete(String id, long time);
+        
+        public Publisher<E> init(int port);
+        
+        public void reload();
+        
     };
 
     public static abstract class Factory<E> {
@@ -123,14 +128,16 @@ class TemporaryMemory<E extends TemporaryElement<E>> {
         this.factory = factory;
         this.publisher = new Publisher<E>() {
             @Override
-            public void publish(String id, E element) {
-                return;
-            }
+            public void publish(String id, E element) { }
 
             @Override
-            public void delete(String id, long time) {
-                return;
-            }
+            public void delete(String id, long time) { }
+
+            @Override
+            public Publisher<E> init(int port) { return this; }
+
+            @Override
+            public void reload() { }
         };
         this.cleaner.start();
     }

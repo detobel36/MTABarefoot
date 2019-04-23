@@ -1,8 +1,10 @@
-package be.detobel36.mtabarefoot;
+package be.detobel36.mtabarefoot.input_server;
 
+import be.detobel36.mtabarefoot.CustomMatcherKState;
+import be.detobel36.mtabarefoot.CustomMatcherSample;
+import be.detobel36.mtabarefoot.TemporaryMemory;
 import com.bmwcarit.barefoot.matcher.Matcher;
 import com.bmwcarit.barefoot.matcher.MatcherCandidate;
-import com.bmwcarit.barefoot.matcher.MatcherKState;
 import com.bmwcarit.barefoot.matcher.MatcherSample;
 import com.bmwcarit.barefoot.roadmap.Road;
 import com.bmwcarit.barefoot.roadmap.RoadMap;
@@ -15,16 +17,14 @@ import com.bmwcarit.barefoot.spatial.SpatialOperator;
 import com.bmwcarit.barefoot.topology.Dijkstra;
 import com.bmwcarit.barefoot.util.AbstractServer;
 import com.bmwcarit.barefoot.util.Stopwatch;
+import com.google.transit.realtime.GtfsRealtime;
 import java.util.Properties;
 import java.util.Set;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicReference;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.zeromq.ZMQ;
 
 /**
  *
@@ -34,18 +34,16 @@ public class CustomTrackServer extends AbstractServer {
     
     private final static Logger logger = LoggerFactory.getLogger(CustomTrackServer.class);
     private final static SpatialOperator spatial = new Geography();
-    private final RoadMap map;
     protected final MatcherResponseFactory customResponseFactory;
     
-    public CustomTrackServer(final Properties properties, final RoadMap map) {
-        this(properties, map, new MatcherResponseFactory(properties, map));
+    public CustomTrackServer(final Properties properties, final RoadMap map, final TemporaryMemory.Publisher typePublisher) {
+        this(properties, new MatcherResponseFactory(properties, map, typePublisher));
     }
     
-    public CustomTrackServer(final Properties properties, final RoadMap map, 
+    private CustomTrackServer(final Properties properties, 
             final MatcherResponseFactory responseFactory) {
         super(properties, responseFactory);
         this.customResponseFactory = responseFactory;
-        this.map = map;
     }
     
     protected static class MatcherResponseFactory extends ResponseFactory {
@@ -56,7 +54,8 @@ public class CustomTrackServer extends AbstractServer {
         private final double sensitive;
         private final TemporaryMemory<State> memory;
 
-        public MatcherResponseFactory(Properties properties, RoadMap map) {
+        public MatcherResponseFactory(final Properties properties, final RoadMap map, 
+                final TemporaryMemory.Publisher publisher) {
             matcher = new Matcher(map, new Dijkstra<Road, RoadPoint>(), new TimePriority(),
                     new Geography());
 
@@ -81,8 +80,8 @@ public class CustomTrackServer extends AbstractServer {
                 public State newInstance(String id) {
                     return new State(id);
                 }
-            }, new StatePublisher(port));
-
+            }, publisher.init(port));
+            
             logger.info("tracker.state.ttl={}", TTL);
             logger.info("tracker.port={}", port);
             logger.info("tracker.monitor.sensitive={}", sensitive);
@@ -118,6 +117,11 @@ public class CustomTrackServer extends AbstractServer {
             };
         }
         
+        public RESULT treatInformation(final GtfsRealtime.FeedEntity feed, final StringBuilder response) throws JSONException {
+            final CustomMatcherSample sample = new CustomMatcherSample(feed);
+            return processTreatInformation(sample);
+        }
+        
         public RESULT treatInformation(final JSONObject json, final StringBuilder response) throws JSONException {
             if (!json.optString("id").isEmpty()) {
                 if (!json.optString("time").isEmpty()
@@ -125,69 +129,9 @@ public class CustomTrackServer extends AbstractServer {
 
                     logger.debug("Execute for input: " + json.getString("id"));
 
-                    final MatcherSample sample = new MatcherSample(json);
-                    final State state = memory.getLocked(sample.id());
-
-                    if (state.inner.sample() != null) {
-                        if (sample.time() < state.inner.sample().time()) {
-                            state.unlock();
-                            logger.warn("received out of order sample");
-                            return RESULT.ERROR;
-                        }
-                        if (spatial.distance(sample.point(),
-                                state.inner.sample().point()) < Math.max(0, distance)) {
-                            state.unlock();
-                            logger.debug("received sample below distance threshold");
-                            return RESULT.SUCCESS;
-                        }
-                        if ((sample.time() - state.inner.sample().time()) < Math.max(0,
-                                interval)) {
-                            state.unlock();
-                            logger.debug("received sample below interval threshold");
-                            return RESULT.SUCCESS;
-                        }
-                    }
-
-                    final AtomicReference<Set<MatcherCandidate>> vector =
-                            new AtomicReference<>();
-                    final StaticScheduler.InlineScheduler scheduler = StaticScheduler.scheduler();
-                    scheduler.spawn(new Task() {
-                        @Override
-                        public void run() {
-                            final Stopwatch sw = new Stopwatch();
-                            sw.start();
-                            vector.set(matcher.execute(state.inner.vector(),
-                                    state.inner.sample(), sample));
-                            sw.stop();
-                            logger.debug("state update of object {} processed in {} ms",
-                                    sample.id(), sw.ms());
-                        }
-                    });
-
-                    if (!scheduler.sync()) {
-                        state.unlock();
-                        logger.error("matcher execution error");
-                        return RESULT.ERROR;
-                    } else {
-                        boolean publish = true;
-                        final MatcherSample previousSample = state.inner.sample();
-                        final MatcherCandidate previousEstimate = state.inner.estimate();
-                        state.inner.update(vector.get(), sample);
-
-                        if (previousSample != null && previousEstimate != null) {
-                            if (spatial.distance(previousSample.point(),
-                                    sample.point()) < sensitive
-                                    && previousEstimate.point().edge()
-                                            .id() == state.inner.estimate().point()
-                                                    .edge().id()) {
-                                publish = false;
-                                logger.debug("unpublished update");
-                            }
-                        }
-
-                        state.updateAndUnlock(TTL, publish);
-                        return RESULT.SUCCESS;
-                    }
+                    final CustomMatcherSample sample = new CustomMatcherSample(json);
+                    return processTreatInformation(sample);
+                    
                 } else {
                     String id = json.getString("id");
                     logger.debug("received state request for object {}", id);
@@ -214,67 +158,81 @@ public class CustomTrackServer extends AbstractServer {
                         "JSON request faulty or incomplete: " + json);
             }
         }
-    }
+        
+        private RESULT processTreatInformation(final MatcherSample sample) {
+            final State state = memory.getLocked(sample.id());
 
-    private static class State extends TemporaryMemory.TemporaryElement<CustomTrackServer.State> {
-        final MatcherKState inner = new CustomMatcherKState();
+            if (state.inner.sample() != null) {
+                if (sample.time() < state.inner.sample().time()) {
+                    state.unlock();
+                    logger.warn("received out of order sample");
+                    return RESULT.ERROR;
+                }
+                if (spatial.distance(sample.point(),
+                        state.inner.sample().point()) < Math.max(0, distance)) {
+                    state.unlock();
+                    logger.debug("received sample below distance threshold");
+                    return RESULT.SUCCESS;
+                }
+                if ((sample.time() - state.inner.sample().time()) < Math.max(0,
+                        interval)) {
+                    state.unlock();
+                    logger.debug("received sample below interval threshold");
+                    return RESULT.SUCCESS;
+                }
+            }
+
+            final AtomicReference<Set<MatcherCandidate>> vector =
+                    new AtomicReference<>();
+            final StaticScheduler.InlineScheduler scheduler = StaticScheduler.scheduler();
+            scheduler.spawn(new Task() {
+                @Override
+                public void run() {
+                    final Stopwatch sw = new Stopwatch();
+                    sw.start();
+                    vector.set(matcher.execute(state.inner.vector(),
+                            state.inner.sample(), sample));
+                    sw.stop();
+                    logger.debug("state update of object {} processed in {} ms",
+                            sample.id(), sw.ms());
+                }
+            });
+
+            if (!scheduler.sync()) {
+                state.unlock();
+                logger.error("matcher execution error");
+                return RESULT.ERROR;
+            } else {
+                boolean publish = true;
+                final MatcherSample previousSample = state.inner.sample();
+                final MatcherCandidate previousEstimate = state.inner.estimate();
+                state.inner.update(vector.get(), sample);
+
+                if (previousSample != null && previousEstimate != null) {
+                    if (spatial.distance(previousSample.point(),
+                            sample.point()) < sensitive
+                            && previousEstimate.point().edge()
+                                    .id() == state.inner.estimate().point()
+                                            .edge().id()) {
+                        publish = false;
+                        logger.debug("unpublished update");
+                    }
+                }
+
+                state.updateAndUnlock(TTL, publish);
+                return RESULT.SUCCESS;
+            }
+        }
+        
+    }
+    
+
+    public static class State extends TemporaryMemory.TemporaryElement<CustomTrackServer.State> {
+        public final CustomMatcherKState inner = new CustomMatcherKState();
 
         public State(String id) {
             super(id);
         }
     };
-    
-    private static class StatePublisher extends Thread implements TemporaryMemory.Publisher<CustomTrackServer.State> {
-        private final BlockingQueue<String> queue = new LinkedBlockingDeque<>();
-        private ZMQ.Context context = null;
-        private ZMQ.Socket socket = null;
-
-        public StatePublisher(int port) {
-            context = ZMQ.context(1);
-            socket = context.socket(ZMQ.PUB);
-            socket.bind("tcp://*:" + port);
-            this.setDaemon(true);
-            this.start();
-        }
-
-        @Override
-        public void run() {
-            while (true) {
-                try {
-                    final String message = queue.take();
-                    socket.send(message);
-                } catch (InterruptedException e) {
-                    logger.warn("state publisher interrupted");
-                    return;
-                }
-            }
-        }
-
-        @Override
-        public void publish(String id, CustomTrackServer.State state) {
-            try {
-                final JSONObject json = state.inner.toMonitorJSON();
-                json.put("id", id);
-                queue.put(json.toString());
-            } catch (InterruptedException | JSONException e) {
-                logger.error("update failed: {}", e.getMessage());
-                e.printStackTrace();
-            }
-        }
-
-        @Override
-        public void delete(String id, long time) {
-            try {
-                final JSONObject json = new JSONObject();
-                json.put("id", id);
-                json.put("time", time);
-                queue.put(json.toString());
-                logger.debug("delete object {}", id);
-            } catch (InterruptedException | JSONException e) {
-                logger.error("delete failed: {}", e.getMessage());
-                e.printStackTrace();
-            }
-        }
-    }
     
 }

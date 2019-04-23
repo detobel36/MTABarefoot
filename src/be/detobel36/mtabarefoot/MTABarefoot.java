@@ -1,5 +1,10 @@
 package be.detobel36.mtabarefoot;
 
+import be.detobel36.mtabarefoot.input_server.SocketFetchData;
+import be.detobel36.mtabarefoot.input_server.CustomTrackServer;
+import be.detobel36.mtabarefoot.input_server.MTAFetchData;
+import be.detobel36.mtabarefoot.publisher.StatePublisherExternalTcp;
+import be.detobel36.mtabarefoot.publisher.StatePublisherPostgreSQL;
 import com.bmwcarit.barefoot.roadmap.Loader;
 import com.bmwcarit.barefoot.roadmap.RoadMap;
 import com.bmwcarit.barefoot.util.SourceException;
@@ -20,12 +25,14 @@ public class MTABarefoot {
     
     private static final Properties databaseProperties = new Properties();
     private static final Properties serverProperties = new Properties();
+    private static String requestPath = "./config/request.sql";
     
     private static CustomTrackServer trackerServer = null;
+    private static TemporaryMemory.Publisher<CustomTrackServer.State> outputPublisher;
     
     
     private static void initServer(final String pathServerProperties, final String pathDatabaseProperties,
-            final String typeServer) {
+            final String typeServerInput, final String typeServerOutput) {
         logger.info("initialize server");
 
         try {
@@ -64,22 +71,43 @@ public class MTABarefoot {
             System.exit(1);
             return;
         }
+        
+        
+        switch(typeServerOutput.toLowerCase()) {
+            case "tcp":
+                outputPublisher = new StatePublisherExternalTcp();
+                break;
+                
+            case "sql":
+                outputPublisher = new StatePublisherPostgreSQL(databaseProperties, requestPath);
+                break;
 
+                
+            default:
+                logger.error("Unknow OUTPUT server type");
+                System.exit(1);
+                return;
+        }
         
         map.construct();
-        switch(typeServer.toLowerCase()) {
+        
+        switch(typeServerInput.toLowerCase()) {
             case "server":
-                trackerServer = new CustomTrackServer(serverProperties, map);
+                trackerServer = new CustomTrackServer(serverProperties, map, outputPublisher);
                 break;
                 
             case "mta":
-                trackerServer = new MTAFetchData(serverProperties, map);
+                trackerServer = new MTAFetchData(serverProperties, map, outputPublisher);
+                break;
+                
+            case "sock":
+            case "socket":
+                trackerServer = new SocketFetchData(serverProperties, map, outputPublisher);
                 break;
                 
             default:
-                logger.error("Unknow server type");
+                logger.error("Unknow INPUT server type");
                 System.exit(1);
-                return;
         }
     }
 
@@ -87,8 +115,12 @@ public class MTABarefoot {
      * Starts/runs server.
      */
     private static void runServer() {
-        logger.info("starting server on port {} with map {}", trackerServer.getPortNumber(),
+        if(trackerServer.getPortNumber() > 0) {
+            logger.info("starting server on port {} with map {}", trackerServer.getPortNumber(),
                 databaseProperties.getProperty("database.name"));
+        } else {
+            logger.info("starting server with map {}", databaseProperties.getProperty("database.name"));
+        }
 
         trackerServer.runServer();
         logger.info("server stopped");
@@ -108,9 +140,9 @@ public class MTABarefoot {
     
     
     public static void main(String[] args) {
-        if (args.length != 3) {
-            logger.error("missing arguments\nusage: /path/to/server/properties "
-                    + "/path/to/mapserver/properties [server/mta]");
+        if (args.length != 4) {
+            logger.error("missing arguments\nusage: </path/to/server/properties> "
+                    + "</path/to/mapserver/properties> [INPUT: server/mta/socket] [OUTPUT: tcp/sql]");
             System.exit(1);
         } else {
             Runtime.getRuntime().addShutdownHook(new Thread() {
@@ -119,11 +151,20 @@ public class MTABarefoot {
                     stopServer();
                 }
             });
-
-            initServer(args[0], args[1], args[2]);
+            
+            new ScanIn();
+            
+            initServer(args[0], args[1], args[2], args[3]);
             runServer();
         }
     }
     
+    protected static void reloadOutput() {
+        outputPublisher.reload();
+    }
+    
+    public static String getRequestPath() {
+        return requestPath;
+    }
     
 }

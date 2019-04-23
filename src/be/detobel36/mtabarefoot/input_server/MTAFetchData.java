@@ -1,7 +1,7 @@
-package be.detobel36.mtabarefoot;
+package be.detobel36.mtabarefoot.input_server;
 
+import be.detobel36.mtabarefoot.TemporaryMemory;
 import com.bmwcarit.barefoot.roadmap.RoadMap;
-import com.google.transit.realtime.GtfsRealtime;
 import java.net.URL;
 import com.google.transit.realtime.GtfsRealtime.FeedMessage;
 import java.io.IOException;
@@ -10,7 +10,6 @@ import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.json.JSONException;
-import org.json.JSONObject;
 import org.slf4j.LoggerFactory;
 
 
@@ -24,8 +23,9 @@ public class MTAFetchData extends CustomTrackServer {
     private static final String TOKEN = "f34bb047-b975-46fc-8349-e931194e2fc9";
     private long lastUpdateTime;
     
-    public MTAFetchData(final Properties properties, final RoadMap map) {
-        super(properties, map);
+    public MTAFetchData(final Properties properties, final RoadMap map,
+            final TemporaryMemory.Publisher<CustomTrackServer.State> outputPublisher) {
+        super(properties, map, outputPublisher);
         
         lastUpdateTime = 0l;
     }
@@ -59,25 +59,25 @@ public class MTAFetchData extends CustomTrackServer {
                 logger.info("Fetch " + result.getEntityCount() + " vehicles");
                 result.getEntityList().forEach((entity) -> {
                     if(entity.hasVehicle()) {
-                        final GtfsRealtime.VehiclePosition vehicle = entity.getVehicle();
-                        final GtfsRealtime.Position pos = vehicle.getPosition();
-                        final long time = vehicle.getTimestamp() * 1000; // sec to milisecond
-                        final String id = vehicle.getVehicle().getId();
+//                        final GtfsRealtime.VehiclePosition vehicle = entity.getVehicle();
+//                        final GtfsRealtime.Position pos = vehicle.getPosition();
+//                        final long time = vehicle.getTimestamp() * 1000; // sec to milisecond
+//                        final String id = vehicle.getVehicle().getId();
 
-                        final String point = "POINT(" + pos.getLongitude() + " " + pos.getLatitude() + ")";
+//                        final String point = "POINT(" + pos.getLongitude() + " " + pos.getLatitude() + ")";
 
-                        final JSONObject json = new JSONObject();
-                        try {
-                            json.put("id", id);
-                            json.put("point", point);
-                            json.put("time", time);
-
-                        } catch (JSONException ex) {
-                            Logger.getLogger(MTAFetchData.class.getName()).log(Level.SEVERE, null, ex);
-                        }
+//                        final JSONObject json = new JSONObject();
+//                        try {
+//                            json.put("id", id);
+//                            json.put("point", point);
+//                            json.put("time", time);
+//
+//                        } catch (JSONException ex) {
+//                            Logger.getLogger(MTAFetchData.class.getName()).log(Level.SEVERE, null, ex);
+//                        }
                         final StringBuilder response = new StringBuilder();
                         try {
-                            customResponseFactory.treatInformation(json, response);
+                            customResponseFactory.treatInformation(entity, response);
                         } catch (JSONException ex) {
                             Logger.getLogger(MTAFetchData.class.getName()).log(Level.SEVERE, null, ex);
                         }
