@@ -44,36 +44,36 @@ public class TemporaryMemory<E extends TemporaryElement<E>> {
     private final Publisher<E> publisher;
     private final Factory<E> factory;
     private final AtomicBoolean stop = new AtomicBoolean(false);
-//    private final Thread cleaner = new Thread(new Runnable() {
-//        @Override
-//        public void run() {
-//            while (!stop.get()) {
-//                Tuple<Long, E> entry = queue.poll();
-//                if (entry == null) {
-//                    try {
-//                        Thread.sleep(1000 + 1);
-//                        continue;
-//                    } catch (InterruptedException e) {
-//                        logger.warn("cleaner thread sleep interrupted");
-//                    }
-//                }
-//
-//                while (entry.one() > Calendar.getInstance().getTimeInMillis()) {
-//                    try {
-//                        long timeout = entry.one() - Calendar.getInstance().getTimeInMillis() + 1;
-//
-//                        if (timeout > 0) {
-//                            Thread.sleep(timeout);
-//                        }
-//                    } catch (InterruptedException e) {
-//                        logger.warn("cleaner thread sleep interrupted");
-//                    }
-//                }
-//
-//                tryKill(entry.two());
-//            }
-//        }
-//    });
+    private final Thread cleaner = new Thread(new Runnable() {
+        @Override
+        public void run() {
+            while (!stop.get()) {
+                Tuple<Long, E> entry = queue.poll();
+                if (entry == null) {
+                    try {
+                        Thread.sleep(1000 + 1);
+                        continue;
+                    } catch (InterruptedException e) {
+                        logger.warn("cleaner thread sleep interrupted");
+                    }
+                }
+
+                while (entry.one() > Calendar.getInstance().getTimeInMillis()) {
+                    try {
+                        long timeout = entry.one() - Calendar.getInstance().getTimeInMillis() + 1;
+
+                        if (timeout > 0) {
+                            Thread.sleep(timeout);
+                        }
+                    } catch (InterruptedException e) {
+                        logger.warn("cleaner thread sleep interrupted");
+                    }
+                }
+
+                tryKill(entry.two());
+            }
+        }
+    });
 
     public static interface Publisher<E> {
         public abstract void publish(String id, E element);
@@ -137,22 +137,22 @@ public class TemporaryMemory<E extends TemporaryElement<E>> {
             @Override
             public void reload() { }
         };
-//        this.cleaner.start();
+        this.cleaner.start();
     }
 
     public TemporaryMemory(Factory<E> factory, Publisher<E> publisher) {
         this.factory = factory;
         this.publisher = publisher;
-//        this.cleaner.start();
+        this.cleaner.start();
     }
 
     public void stop() {
         stop.set(true);
-//        try {
-//            cleaner.join();
-//        } catch (InterruptedException e) {
-//            logger.warn("cleaner thread stop interrupted");
-//        }
+        try {
+            cleaner.join();
+        } catch (InterruptedException e) {
+            logger.warn("cleaner thread stop interrupted");
+        }
     }
 
     public synchronized int size() {

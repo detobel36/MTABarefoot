@@ -8,7 +8,8 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -25,7 +26,6 @@ public class StatePublisherPostgreSQL implements TemporaryMemory.Publisher<Custo
     
     private PostgresPublisher postgresSource;
     private HashMap<String, Boolean> listRequest;
-    private ArrayList<String> listQueryToExecute = new ArrayList<String>();
     
     
     public StatePublisherPostgreSQL(final Properties databaseProperties, 
@@ -108,31 +108,29 @@ public class StatePublisherPostgreSQL implements TemporaryMemory.Publisher<Custo
                     logger.info("Req :" + strRequest);
                 }
                 
-//                listQueryToExecute.add(strRequest);
-                
-//                try {
-//                    if(request.getValue()) { // If select
-//                        final ResultSet result = postgresSource.getResultSet(strRequest);
-//                        String strResult = "";
-//
-//                        final int numCol = result.getMetaData().getColumnCount();
-//                        while (result.next()) {
-//                            for (int i = 1; i <= numCol; ++i) {
-//                                strResult += result.getString(i) + " ";
-//                            }
-//                            strResult += ";";
-//                        }
-//                        if(MTABarefoot.viewQuery()) {
-//                            logger.info("Result: " + strResult);
-//                        }
-//                        
-//
-//                    } else {
-//                        postgresSource.execute(strRequest);
-//                    }
-//                } catch (SQLException | ClassNotFoundException ex) {
-//                    logger.error("Erreur avec la requête " + strRequest, ex);
-//                }
+                try {
+                    if(request.getValue()) { // If select
+                        final ResultSet result = postgresSource.getResultSet(strRequest);
+                        String strResult = "";
+
+                        final int numCol = result.getMetaData().getColumnCount();
+                        while (result.next()) {
+                            for (int i = 1; i <= numCol; ++i) {
+                                strResult += result.getString(i) + " ";
+                            }
+                            strResult += ";";
+                        }
+                        if(MTABarefoot.viewQuery()) {
+                            logger.info("Result: " + strResult);
+                        }
+                        
+
+                    } else {
+                        postgresSource.execute(strRequest);
+                    }
+                } catch (SQLException | ClassNotFoundException ex) {
+                    logger.error("Erreur avec la requête " + strRequest, ex);
+                }
             }
         });
         
@@ -182,36 +180,6 @@ public class StatePublisherPostgreSQL implements TemporaryMemory.Publisher<Custo
         final String requestPath = MTABarefoot.getRequestPath();
         loadRequest(requestPath);
         logger.info("Reload request path: " + requestPath);
-    }
-    
-    public void commit() {
-        logger.info(">>>>>>>>>>>>>>>>");
-        logger.info("");
-        logger.info("<<<<<<<<<<<<<<<<");
-//        final ArrayList<String> listQuery = (ArrayList<String>) listQueryToExecute.clone();
-//        listQueryToExecute.clear();
-//        
-//        new Thread() {
-//            @Override
-//            public void run() {
-//                logger.info("Begin commit !!!!!!!!!!!!!!!!!!!!");
-//                final Long startCommit = System.currentTimeMillis();
-//                listQuery.forEach((query) -> {
-//                    try {
-//                        postgresSource.execute(query);
-//                    } catch (SQLException | ClassNotFoundException ex) {
-//                        java.util.logging.Logger.getLogger(StatePublisherPostgreSQL.class.getName()).log(Level.SEVERE, null, ex);
-//                    }
-//                });
-//                try {
-//                    postgresSource.commit();
-//                } catch (SQLException ex) {
-//                    logger.error("Erreur commit: " + ex.getMessage());
-//                }
-//                logger.info("------------- End start commit: " + (System.currentTimeMillis()-startCommit) + " ms");
-//            }
-//        }.start();
-        
     }
     
 }

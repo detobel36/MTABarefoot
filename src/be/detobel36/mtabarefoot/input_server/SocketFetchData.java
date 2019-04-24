@@ -1,7 +1,6 @@
 package be.detobel36.mtabarefoot.input_server;
 
 import be.detobel36.mtabarefoot.TemporaryMemory;
-import be.detobel36.mtabarefoot.publisher.StatePublisherPostgreSQL;
 import com.bmwcarit.barefoot.roadmap.RoadMap;
 import com.google.transit.realtime.GtfsRealtime.FeedMessage;
 import java.io.File;
@@ -70,15 +69,6 @@ public class SocketFetchData extends CustomTrackServer {
 
                 });
                 
-                final Long beforePublish = System.currentTimeMillis();
-                if(outputPublisher instanceof StatePublisherPostgreSQL) {
-                    ((StatePublisherPostgreSQL)this.outputPublisher).commit();
-                } else {
-                    logger.info("");
-                    logger.info("Le publisher n'est pas un StatePublisherPostgreSQL");
-                    logger.info("");
-                }
-                logger.info("Publish time: " + (System.currentTimeMillis()-beforePublish) + " ms");
                 logger.info("End treat " + feed.getEntityCount() + " entity (" + ((System.currentTimeMillis()-startTime)/1000.0) + " sec)");
                 logger.info("------------------");
             }

@@ -188,7 +188,7 @@ public class CustomTrackServer extends AbstractServer {
             final Long startTime2 = System.currentTimeMillis();
 //            final AtomicReference<Set<MatcherCandidate>> vector =
 //                    new AtomicReference<>();
-            Set<MatcherCandidate> matchCandidates = matcher.execute(state.inner.vector(),
+            final Set<MatcherCandidate> matchCandidates = matcher.execute(state.inner.vector(),
                     state.inner.sample(), sample);
 //            vector.set(matchCandidates);
             logger.info("time processTreatInformation PART 2 Vector : " + (System.currentTimeMillis()-startTime2) + 

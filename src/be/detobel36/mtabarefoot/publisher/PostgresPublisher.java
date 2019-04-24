@@ -66,7 +66,7 @@ public class PostgresPublisher {
             props.setProperty("password", password);
             // props.setProperty("ssl","true");
             connection = DriverManager.getConnection(url, props);
-//            connection.setAutoCommit(true);
+            connection.setAutoCommit(true);
         } catch (SQLException e) {
             throw new SourceException("Opening PostgreSQL connection failed: " + e.getMessage(), e);
         }
@@ -100,10 +100,6 @@ public class PostgresPublisher {
         final Statement st = connection.createStatement(1005, 1008);
         st.setFetchSize(100);
         return st.executeQuery(statement);
-    }
-    
-    public void commit() throws SQLException {
-        connection.commit();
     }
     
 }
