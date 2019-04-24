@@ -154,6 +154,7 @@ public class StatePublisherPostgreSQL implements TemporaryMemory.Publisher<Custo
         if(query.contains(":")) {
             logger.info("Requete ignoré car des valeurs n'ont pas pu être remplacée: '" + 
                     query + "'");
+            logger.info("Infos: " + pointInfos.keySet());
             return "";
         }
         

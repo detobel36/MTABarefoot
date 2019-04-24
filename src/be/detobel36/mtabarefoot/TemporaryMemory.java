@@ -21,8 +21,6 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -93,7 +91,7 @@ public class TemporaryMemory<E extends TemporaryElement<E>> {
     }
 
     public static abstract class TemporaryElement<E extends TemporaryElement<E>> {
-        final Lock lock = new ReentrantLock();
+//        final Lock lock = new ReentrantLock();
         final String id;
         TemporaryMemory<E> memory;
         long death = 0;
@@ -114,12 +112,12 @@ public class TemporaryMemory<E extends TemporaryElement<E>> {
             if (publish) {
                 memory.publisher.publish(id, (E) this);
             }
-            lock.unlock();
+//            lock.unlock();
         }
 
-        @SuppressWarnings("unchecked")
+//        @SuppressWarnings("unchecked")
         public void unlock() {
-            lock.unlock();
+//            lock.unlock();
             memory.tryKill((E) this);
         }
     }
@@ -168,7 +166,7 @@ public class TemporaryMemory<E extends TemporaryElement<E>> {
             element.memory = this;
             map.put(id, element);
         }
-        element.lock.lock();
+//        element.lock.lock();
         return element;
     }
 
@@ -177,7 +175,7 @@ public class TemporaryMemory<E extends TemporaryElement<E>> {
         if (element == null) {
             return null;
         } else {
-            element.lock.lock();
+//            element.lock.lock();
             return element;
         }
     }
@@ -188,11 +186,11 @@ public class TemporaryMemory<E extends TemporaryElement<E>> {
             logger.debug("element '{}' is deleted", id);
             return true;
         } else {
-            if (!element.lock.tryLock()) {
-                return false;
-            }
+//            if (!element.lock.tryLock()) {
+//                return false;
+//            }
             map.remove(id);
-            element.lock.unlock();
+//            element.lock.unlock();
             publisher.delete(id, Calendar.getInstance().getTimeInMillis());
             logger.debug("element '{}' deleted", id);
             return true;
@@ -200,13 +198,13 @@ public class TemporaryMemory<E extends TemporaryElement<E>> {
     }
 
     private synchronized void tryKill(E element) {
-        element.lock.lock();
+//        element.lock.lock();
         if (element.death <= Calendar.getInstance().getTimeInMillis()) {
             if (map.remove(element.id) != null) {
                 publisher.delete(element.id, element.death);
                 logger.debug("element '{}' expired and deleted", element.id);
             }
         }
-        element.lock.unlock();
+//        element.lock.unlock();
     }
 }
