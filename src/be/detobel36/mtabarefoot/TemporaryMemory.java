@@ -21,8 +21,6 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,36 +44,36 @@ public class TemporaryMemory<E extends TemporaryElement<E>> {
     private final Publisher<E> publisher;
     private final Factory<E> factory;
     private final AtomicBoolean stop = new AtomicBoolean(false);
-    private final Thread cleaner = new Thread(new Runnable() {
-        @Override
-        public void run() {
-            while (!stop.get()) {
-                Tuple<Long, E> entry = queue.poll();
-                if (entry == null) {
-                    try {
-                        Thread.sleep(1000 + 1);
-                        continue;
-                    } catch (InterruptedException e) {
-                        logger.warn("cleaner thread sleep interrupted");
-                    }
-                }
-
-                while (entry.one() > Calendar.getInstance().getTimeInMillis()) {
-                    try {
-                        long timeout = entry.one() - Calendar.getInstance().getTimeInMillis() + 1;
-
-                        if (timeout > 0) {
-                            Thread.sleep(timeout);
-                        }
-                    } catch (InterruptedException e) {
-                        logger.warn("cleaner thread sleep interrupted");
-                    }
-                }
-
-                tryKill(entry.two());
-            }
-        }
-    });
+//    private final Thread cleaner = new Thread(new Runnable() {
+//        @Override
+//        public void run() {
+//            while (!stop.get()) {
+//                Tuple<Long, E> entry = queue.poll();
+//                if (entry == null) {
+//                    try {
+//                        Thread.sleep(1000 + 1);
+//                        continue;
+//                    } catch (InterruptedException e) {
+//                        logger.warn("cleaner thread sleep interrupted");
+//                    }
+//                }
+//
+//                while (entry.one() > Calendar.getInstance().getTimeInMillis()) {
+//                    try {
+//                        long timeout = entry.one() - Calendar.getInstance().getTimeInMillis() + 1;
+//
+//                        if (timeout > 0) {
+//                            Thread.sleep(timeout);
+//                        }
+//                    } catch (InterruptedException e) {
+//                        logger.warn("cleaner thread sleep interrupted");
+//                    }
+//                }
+//
+//                tryKill(entry.two());
+//            }
+//        }
+//    });
 
     public static interface Publisher<E> {
         public abstract void publish(String id, E element);
@@ -93,7 +91,7 @@ public class TemporaryMemory<E extends TemporaryElement<E>> {
     }
 
     public static abstract class TemporaryElement<E extends TemporaryElement<E>> {
-        final Lock lock = new ReentrantLock();
+//        final Lock lock = new ReentrantLock();
         final String id;
         TemporaryMemory<E> memory;
         long death = 0;
@@ -114,12 +112,12 @@ public class TemporaryMemory<E extends TemporaryElement<E>> {
             if (publish) {
                 memory.publisher.publish(id, (E) this);
             }
-            lock.unlock();
+//            lock.unlock();
         }
 
-        @SuppressWarnings("unchecked")
+//        @SuppressWarnings("unchecked")
         public void unlock() {
-            lock.unlock();
+//            lock.unlock();
             memory.tryKill((E) this);
         }
     }
@@ -139,28 +137,38 @@ public class TemporaryMemory<E extends TemporaryElement<E>> {
             @Override
             public void reload() { }
         };
-        this.cleaner.start();
+//        this.cleaner.start();
     }
 
     public TemporaryMemory(Factory<E> factory, Publisher<E> publisher) {
         this.factory = factory;
         this.publisher = publisher;
-        this.cleaner.start();
+//        this.cleaner.start();
     }
 
     public void stop() {
         stop.set(true);
-        try {
-            cleaner.join();
-        } catch (InterruptedException e) {
-            logger.warn("cleaner thread stop interrupted");
-        }
+//        try {
+//            cleaner.join();
+//        } catch (InterruptedException e) {
+//            logger.warn("cleaner thread stop interrupted");
+//        }
     }
 
     public synchronized int size() {
         return map.size();
     }
-
+    
+    public E getElement(String id) {
+        E element = map.get(id);
+        if (element == null) {
+            element = factory.newInstance(id);
+            element.memory = this;
+            map.put(id, element);
+        }
+        return element;
+    }
+    
     public synchronized E getLocked(String id) {
         E element = map.get(id);
         if (element == null) {
@@ -168,7 +176,7 @@ public class TemporaryMemory<E extends TemporaryElement<E>> {
             element.memory = this;
             map.put(id, element);
         }
-        element.lock.lock();
+//        element.lock.lock();
         return element;
     }
 
@@ -177,7 +185,7 @@ public class TemporaryMemory<E extends TemporaryElement<E>> {
         if (element == null) {
             return null;
         } else {
-            element.lock.lock();
+//            element.lock.lock();
             return element;
         }
     }
@@ -188,11 +196,11 @@ public class TemporaryMemory<E extends TemporaryElement<E>> {
             logger.debug("element '{}' is deleted", id);
             return true;
         } else {
-            if (!element.lock.tryLock()) {
-                return false;
-            }
+//            if (!element.lock.tryLock()) {
+//                return false;
+//            }
             map.remove(id);
-            element.lock.unlock();
+//            element.lock.unlock();
             publisher.delete(id, Calendar.getInstance().getTimeInMillis());
             logger.debug("element '{}' deleted", id);
             return true;
@@ -200,13 +208,12 @@ public class TemporaryMemory<E extends TemporaryElement<E>> {
     }
 
     private synchronized void tryKill(E element) {
-        element.lock.lock();
-        if (element.death <= Calendar.getInstance().getTimeInMillis()) {
-            if (map.remove(element.id) != null) {
-                publisher.delete(element.id, element.death);
-                logger.debug("element '{}' expired and deleted", element.id);
-            }
+//        element.lock.lock();
+        if (element.death <= Calendar.getInstance().getTimeInMillis() && 
+                map.remove(element.id) != null) {
+            publisher.delete(element.id, element.death);
+            logger.debug("element '{}' expired and deleted", element.id);
         }
-        element.lock.unlock();
+//        element.lock.unlock();
     }
 }

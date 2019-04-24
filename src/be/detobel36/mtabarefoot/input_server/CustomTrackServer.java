@@ -11,16 +11,13 @@ import com.bmwcarit.barefoot.roadmap.RoadMap;
 import com.bmwcarit.barefoot.roadmap.RoadPoint;
 import com.bmwcarit.barefoot.roadmap.TimePriority;
 import com.bmwcarit.barefoot.scheduler.StaticScheduler;
-import com.bmwcarit.barefoot.scheduler.Task;
 import com.bmwcarit.barefoot.spatial.Geography;
 import com.bmwcarit.barefoot.spatial.SpatialOperator;
 import com.bmwcarit.barefoot.topology.Dijkstra;
 import com.bmwcarit.barefoot.util.AbstractServer;
-import com.bmwcarit.barefoot.util.Stopwatch;
 import com.google.transit.realtime.GtfsRealtime;
 import java.util.Properties;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -119,7 +116,10 @@ public class CustomTrackServer extends AbstractServer {
         
         public RESULT treatInformation(final GtfsRealtime.FeedEntity feed, final StringBuilder response) throws JSONException {
             final CustomMatcherSample sample = new CustomMatcherSample(feed);
-            return processTreatInformation(sample);
+            Long startTime = System.currentTimeMillis();
+            final RESULT result = processTreatInformation(sample);
+            logger.info("time processTreatInformation : " + (System.currentTimeMillis()-startTime) + " ms");
+            return result;
         }
         
         public RESULT treatInformation(final JSONObject json, final StringBuilder response) throws JSONException {
@@ -128,8 +128,9 @@ public class CustomTrackServer extends AbstractServer {
                         && !json.optString("point").isEmpty()) {
 
                     logger.debug("Execute for input: " + json.getString("id"));
-
+                    
                     final CustomMatcherSample sample = new CustomMatcherSample(json);
+                    
                     return processTreatInformation(sample);
                     
                 } else {
@@ -160,8 +161,9 @@ public class CustomTrackServer extends AbstractServer {
         }
         
         private RESULT processTreatInformation(final MatcherSample sample) {
-            final State state = memory.getLocked(sample.id());
-
+            final State state = memory.getElement(sample.id());
+            
+            final Long startTime1 = System.currentTimeMillis();
             if (state.inner.sample() != null) {
                 if (sample.time() < state.inner.sample().time()) {
                     state.unlock();
@@ -181,47 +183,46 @@ public class CustomTrackServer extends AbstractServer {
                     return RESULT.SUCCESS;
                 }
             }
+            logger.info("time processTreatInformation PART 1 : " + (System.currentTimeMillis()-startTime1) + " ms");
 
-            final AtomicReference<Set<MatcherCandidate>> vector =
-                    new AtomicReference<>();
-            final StaticScheduler.InlineScheduler scheduler = StaticScheduler.scheduler();
-            scheduler.spawn(new Task() {
-                @Override
-                public void run() {
-                    final Stopwatch sw = new Stopwatch();
-                    sw.start();
-                    vector.set(matcher.execute(state.inner.vector(),
-                            state.inner.sample(), sample));
-                    sw.stop();
-                    logger.debug("state update of object {} processed in {} ms",
-                            sample.id(), sw.ms());
-                }
-            });
+            final Long startTime2 = System.currentTimeMillis();
+//            final AtomicReference<Set<MatcherCandidate>> vector =
+//                    new AtomicReference<>();
+            Set<MatcherCandidate> matchCandidates = matcher.execute(state.inner.vector(),
+                    state.inner.sample(), sample);
+//            vector.set(matchCandidates);
+            logger.info("time processTreatInformation PART 2 Vector : " + (System.currentTimeMillis()-startTime2) + 
+                    " ms (" + matchCandidates.size() + " candidates)");
+            
+            Long startTime3 = System.currentTimeMillis();
 
-            if (!scheduler.sync()) {
-                state.unlock();
-                logger.error("matcher execution error");
-                return RESULT.ERROR;
-            } else {
-                boolean publish = true;
-                final MatcherSample previousSample = state.inner.sample();
-                final MatcherCandidate previousEstimate = state.inner.estimate();
-                state.inner.update(vector.get(), sample);
+            logger.info("time processTreatInformation PART 3 bis sync: " + (System.currentTimeMillis()-startTime3) + " ms");
 
-                if (previousSample != null && previousEstimate != null) {
-                    if (spatial.distance(previousSample.point(),
-                            sample.point()) < sensitive
-                            && previousEstimate.point().edge()
-                                    .id() == state.inner.estimate().point()
-                                            .edge().id()) {
-                        publish = false;
-                        logger.debug("unpublished update");
-                    }
-                }
+            boolean publish = true;
+            final MatcherSample previousSample = state.inner.sample();
+            final MatcherCandidate previousEstimate = state.inner.estimate();
+            final Long startTime4 = System.currentTimeMillis();
+            state.inner.update(matchCandidates, sample);
+            logger.info("time processTreatInformation PART 4 UPDATE VECTOR: " + (System.currentTimeMillis()-startTime4) + " ms");
 
-                state.updateAndUnlock(TTL, publish);
-                return RESULT.SUCCESS;
+            final Long startTime5 = System.currentTimeMillis();
+            if (previousSample != null && previousEstimate != null && 
+                    spatial.distance(previousSample.point(),
+                        sample.point()) < sensitive && 
+                    previousEstimate.point().edge().id() == 
+                        state.inner.estimate().point().edge().id()) {
+                publish = false;
+                logger.debug("unpublished update");
             }
+            logger.info("time processTreatInformation PART 5 PUBLISH ?: " + (System.currentTimeMillis()-startTime5) + " ms");
+
+            final Long startTime6 = System.currentTimeMillis();
+            state.updateAndUnlock(TTL, publish);
+            logger.info("time processTreatInformation PART 6 unlock: " + (System.currentTimeMillis()-startTime6) + " ms");
+
+            logger.info("time processTreatInformation PART 3: " + (System.currentTimeMillis()-startTime3) + " ms");
+            
+            return RESULT.SUCCESS;
         }
         
     }
