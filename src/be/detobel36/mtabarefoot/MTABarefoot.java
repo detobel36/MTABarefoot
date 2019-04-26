@@ -23,30 +23,21 @@ public class MTABarefoot {
     
     private static final Logger logger = LoggerFactory.getLogger(MTABarefoot.class);
     
-    private static final Properties databaseProperties = new Properties();
+    private static Properties databaseProperties = new Properties();
     private static final Properties serverProperties = new Properties();
     private static String requestPath = "./config/request.sql";
+    private static String pathDatabaseProperties;
     
     private static CustomTrackServer trackerServer = null;
     private static TemporaryMemory.Publisher<CustomTrackServer.State> outputPublisher;
     
     private static boolean view_query = false;
     
-    private static void initServer(final String pathServerProperties, final String pathDatabaseProperties,
+    private static void initServer(final String pathServerProperties, 
             final String typeServerInput, final String typeServerOutput) {
         logger.info("initialize server");
 
-        try {
-            logger.info("read database properties from file {}", pathDatabaseProperties);
-            databaseProperties.load(new FileInputStream(pathDatabaseProperties));
-        } catch (FileNotFoundException e) {
-            logger.error("file {} not found", pathDatabaseProperties);
-            System.exit(1);
-            return;
-        } catch (IOException e) {
-            logger.error("reading database properties from file {} failed: {}",
-                    pathDatabaseProperties, e.getMessage());
-            System.exit(1);
+        if(!loadDatabaseProperties()) {
             return;
         }
         
@@ -59,7 +50,7 @@ public class MTABarefoot {
             return;
         } catch (IOException e) {
             logger.error("reading tracker properties from file {} failed: {}",
-                    pathDatabaseProperties, e.getMessage());
+                    pathServerProperties, e.getMessage());
             System.exit(1);
             return;
         }
@@ -80,7 +71,7 @@ public class MTABarefoot {
                 break;
                 
             case "sql":
-                outputPublisher = new StatePublisherPostgreSQL(databaseProperties, requestPath);
+                outputPublisher = new StatePublisherPostgreSQL(requestPath);
                 break;
 
                 
@@ -155,17 +146,23 @@ public class MTABarefoot {
             
             new ScanIn();
             
-            initServer(args[0], args[1], args[2], args[3]);
+            pathDatabaseProperties = args[1];
+            initServer(args[0], args[2], args[3]);
             runServer();
         }
     }
     
     protected static void reloadOutput() {
+        loadDatabaseProperties();
         outputPublisher.reload();
     }
     
     public static String getRequestPath() {
         return requestPath;
+    }
+    
+    public static Properties getDatabaseProperties() {
+        return databaseProperties;
     }
     
     public static void switchViewQuery() {
@@ -174,6 +171,23 @@ public class MTABarefoot {
     
     public static boolean viewQuery() {
         return view_query;
+    }
+
+    public static boolean loadDatabaseProperties() {
+        try {
+            logger.info("read database properties from file {}", pathDatabaseProperties);
+            databaseProperties.load(new FileInputStream(pathDatabaseProperties));
+        } catch (FileNotFoundException e) {
+            logger.error("file {} not found", pathDatabaseProperties);
+            System.exit(1);
+            return false;
+        } catch (IOException e) {
+            logger.error("reading database properties from file {} failed: {}",
+                    pathDatabaseProperties, e.getMessage());
+            System.exit(1);
+            return false;
+        }
+        return true;
     }
     
 }

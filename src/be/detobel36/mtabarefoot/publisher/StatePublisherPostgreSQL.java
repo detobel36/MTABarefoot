@@ -13,6 +13,7 @@ import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,29 +25,17 @@ public class StatePublisherPostgreSQL implements TemporaryMemory.Publisher<Custo
     
     private final static Logger logger = LoggerFactory.getLogger(StatePublisherPostgreSQL.class);
     
-    private PostgresPublisher postgresSource;
+    private final Pattern pattern = Pattern.compile("\\:([0-9a-zA-Z\\_\\-\\.])+ ");
+    private PostgresPublisher postgresSource = null;
     private HashMap<String, Boolean> listRequest;
     
     
-    public StatePublisherPostgreSQL(final Properties databaseProperties, 
-            final String requestPath) {
-        String host = databaseProperties.getProperty("database.host");
-        int port = Integer.parseInt(databaseProperties.getProperty("database.port", "0"));
-        String database = databaseProperties.getProperty("database.name");
-        String user = databaseProperties.getProperty("database.user");
-        String password = databaseProperties.getProperty("database.password");
-        
-        if (host == null || port == 0 || database == null || user == null
-                || password == null) {
-            throw new SourceException("could not read database properties");
-        }
-        
+    public StatePublisherPostgreSQL(final String requestPath) {
         loadRequest(requestPath);
-        
-        postgresSource = new PostgresPublisher(host, port, database, user, password);
+        loadPostgresSource();
     }
     
-    public void loadRequest(final String requestPath) {
+    public final void loadRequest(final String requestPath) {
         // Stock the request + true if we need to wait some result
         listRequest = new HashMap<String, Boolean>();
         // Variable temporaire
@@ -142,7 +131,7 @@ public class StatePublisherPostgreSQL implements TemporaryMemory.Publisher<Custo
     private String addValueToQuery(final HashMap<String, String> pointInfos, String query) {
 //        logger.info("Avant addValueToQuery: ");
 //        logger.info("Query: " + query);
-        for(Map.Entry<String, String> infos : pointInfos.entrySet()) {
+        for(final Map.Entry<String, String> infos : pointInfos.entrySet()) {
             String value = infos.getValue();
             if(infos.getKey().equalsIgnoreCase("time")) {
                 value = ""+ Long.parseLong(value)/1000;
@@ -151,7 +140,8 @@ public class StatePublisherPostgreSQL implements TemporaryMemory.Publisher<Custo
 //            logger.info("Set " + infos.getKey() + " - " + infos.getValue());
 //            logger.info("Res: " + query);
         }
-        if(query.contains(":")) {
+        
+        if(pattern.matcher(query).find()) {
             logger.info("Requete ignoré car des valeurs n'ont pas pu être remplacée: '" + 
                     query + "'");
             logger.info("Infos: " + pointInfos.keySet());
@@ -180,6 +170,34 @@ public class StatePublisherPostgreSQL implements TemporaryMemory.Publisher<Custo
         final String requestPath = MTABarefoot.getRequestPath();
         loadRequest(requestPath);
         logger.info("Reload request path: " + requestPath);
+        loadPostgresSource();
+        logger.info("Reload Postgresql");
+    }
+
+    private void loadPostgresSource() {
+        final Properties databaseProperties = MTABarefoot.getDatabaseProperties();
+        String host = databaseProperties.getProperty("database.host");
+        int port = Integer.parseInt(databaseProperties.getProperty("database.port", "0"));
+        String database = databaseProperties.getProperty("database.name");
+        String user = databaseProperties.getProperty("database.user");
+        String password = databaseProperties.getProperty("database.password");
+        
+        if (host == null || port == 0 || database == null || user == null
+                || password == null) {
+            throw new SourceException("could not read database properties");
+        }
+        
+        boolean initAgain = false;
+        if(postgresSource != null) {
+            postgresSource.close();
+            initAgain = true;
+        }
+        
+        postgresSource = new PostgresPublisher(host, port, database, user, password);
+        if(initAgain) {
+            logger.info("Open PostgresSource");
+            postgresSource.open();
+        }
     }
     
 }

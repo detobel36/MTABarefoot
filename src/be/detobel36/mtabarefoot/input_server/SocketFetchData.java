@@ -38,6 +38,7 @@ public class SocketFetchData extends CustomTrackServer {
             final AFUNIXSocket sock = AFUNIXSocket.newInstance() ;
             sock.connect(new AFUNIXSocketAddress(socketFile)) ;
             final InputStream is = sock.getInputStream() ;
+            System.gc();
             while(true) {
                 final FeedMessage feed = FeedMessage.parseDelimitedFrom(is);
                 logger.info("Fetch socket");
@@ -57,6 +58,7 @@ public class SocketFetchData extends CustomTrackServer {
 
                 });
                 logger.info("End treat " + feed.getEntityCount() + " entity (" + ((System.currentTimeMillis()-startTime)/1000.0) + " sec)");
+//                System.gc();
             }
         } catch (IOException ex) {
             Logger.getLogger(SocketFetchData.class.getName()).log(Level.SEVERE, null, ex);

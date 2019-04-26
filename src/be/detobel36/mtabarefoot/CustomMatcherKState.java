@@ -8,10 +8,13 @@ import com.bmwcarit.barefoot.roadmap.Road;
 import com.bmwcarit.barefoot.roadmap.RoadPoint;
 import com.bmwcarit.barefoot.roadmap.Route;
 import com.esri.core.geometry.GeometryEngine;
+import com.esri.core.geometry.Point;
 import org.json.JSONException;
 import org.json.JSONObject;
 import com.esri.core.geometry.Polyline;
 import com.esri.core.geometry.WktExportFlags;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import org.json.JSONArray;
@@ -25,6 +28,11 @@ import org.slf4j.LoggerFactory;
 public class CustomMatcherKState extends MatcherKState {
     
     private final static Logger logger = LoggerFactory.getLogger(CustomMatcherKState.class);
+    
+    private final static String SEP_SPATIO_TIME = "@";
+    private final static String SEP_TEMPORAL_TYPE = ",";
+    private final static SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    
     
     private Polyline monitorRoute(final MatcherCandidate candidate) {
         final Polyline routes = new Polyline();
@@ -108,7 +116,7 @@ public class CustomMatcherKState extends MatcherKState {
                 
                 String startPointCoord = GeometryEngine.geometryToWkt(source.geometry(),
                         WktExportFlags.wktExportPoint);
-                startPointCoord += "@" + ((long) beforeLast.time() / 1000);
+                startPointCoord += SEP_SPATIO_TIME + formatDate(beforeLast.time());
                 jsonPoint.put(startPointCoord);
                 
                 // End
@@ -118,7 +126,7 @@ public class CustomMatcherKState extends MatcherKState {
                 
                 String endPointCoord = GeometryEngine.geometryToWkt(target.geometry(),
                         WktExportFlags.wktExportPoint);
-                endPointCoord += "@" + ((long) lastSample.time()/ 1000);
+                endPointCoord += SEP_SPATIO_TIME + formatDate(lastSample.time());
                 jsonPoint.put(endPointCoord);
                 
             } else {
@@ -140,7 +148,7 @@ public class CustomMatcherKState extends MatcherKState {
                 
                 String startPointCoord = GeometryEngine.geometryToWkt(source.geometry(),
                         WktExportFlags.wktExportPoint);
-                startPointCoord += "@" + ((long) prevTime/1000);
+                startPointCoord += SEP_SPATIO_TIME + formatDate(prevTime);
                 jsonPoint.put(startPointCoord);
                 
                 prevTime = prevTime + (long) (startSegmentLenght / speedMs);
@@ -150,12 +158,13 @@ public class CustomMatcherKState extends MatcherKState {
                 String endStartPointCoord = GeometryEngine.geometryToWkt(
                         endSource.geometry().getPoint(endSource.geometry().getPointCount()-1),
                         WktExportFlags.wktExportPoint);
-                endStartPointCoord += "@" + ((long) prevTime/1000);
+                endStartPointCoord += SEP_SPATIO_TIME + formatDate(prevTime);
                 jsonPoint.put(endStartPointCoord);
                 
                 
                 // Other point
                 if(estimateRoute.size() > 2) {
+                    long lastPrevTime = -1;
                     for(int index = 1; index < estimateRoute.size()-1; ++index) {
                         // Vérifier que la "currentRoad.length()" prend bien en compte le fait que l'on ne fait peut-être pas toute la route
                         // Je pense que c'est bon pour les routes au milieu mais qu'il faut faire des exceptions pour la premire et la dernière
@@ -171,13 +180,17 @@ public class CustomMatcherKState extends MatcherKState {
                         roadJson.put("timeStart", (long) prevTime/1000);
                         
                         prevTime = prevTime + (long) (currentRoad.length() / speedMs);
+                        if(lastPrevTime == prevTime) {
+                            continue;
+                        }
+                        lastPrevTime = prevTime;
                         roadJson.put("timeEnd", (long) prevTime/1000);
                         jsonRoad.put(roadJson);
                         
                         String endCurrentPointCoord = GeometryEngine.geometryToWkt(
                                 currentRoad.geometry().getPoint(currentRoad.geometry().getPointCount()-1),
                                 WktExportFlags.wktExportPoint);
-                        endCurrentPointCoord += "@" + ((long) prevTime/1000);
+                        endCurrentPointCoord += SEP_SPATIO_TIME + formatDate(prevTime);
                         jsonPoint.put(endCurrentPointCoord);
                     }
                 }
@@ -196,19 +209,19 @@ public class CustomMatcherKState extends MatcherKState {
 //                calculateDistance += endSegmentLenght;
                 
                 // Potentiellement un doublon !
-                String endPointCoord = GeometryEngine.geometryToWkt(endRoad.geometry().getPoint(0),
-                        WktExportFlags.wktExportPoint);
-                endPointCoord += "@" + ((long) prevTime/1000);
-                jsonPoint.put(endPointCoord);
+//                String endPointCoord = GeometryEngine.geometryToWkt(endRoad.geometry().getPoint(0),
+//                        WktExportFlags.wktExportPoint);
+//                endPointCoord += "@" + ((long) prevTime/1000);
+//                jsonPoint.put(endPointCoord);
                 
                 prevTime = prevTime + (long) (endSegmentLenght / speedMs);
                 roadEndJson.put("timeEndCalculated", (long) prevTime/1000);
-                roadEndJson.put("timeEnd", ((long) lastSample.time()/1000));
+                roadEndJson.put("timeEnd", ((long) lastSample.time()));
                 jsonRoad.put(roadEndJson);
                 
                 String endEndPointCoord = GeometryEngine.geometryToWkt(target.geometry(),
                         WktExportFlags.wktExportPoint);
-                endEndPointCoord += "@" + ((long) lastSample.time()/1000);
+                endEndPointCoord += SEP_SPATIO_TIME + formatDate(lastSample.time());
                 jsonPoint.put(endEndPointCoord);
                 
                 
@@ -268,137 +281,95 @@ public class CustomMatcherKState extends MatcherKState {
             
             result.put("distance", "" + distance);
             result.put("timeDiff", "" + timeDifference); // In milisecond
-            result.put("speed", ""+speedKmH); // In km/h
+            result.put("speed", "" + speedKmH); // In km/h
             
             String listPoints = "";
-            if(estimateRoute.size() == 1) { // Tester de manière pratique ce cas de figure
-                final RoadPoint source = estimateRoute.source();
-                final RoadPoint target = estimateRoute.target();
-                
+            if(estimateRoute.size() == 1) {
                 // Start
-//                final JSONObject roadStartJson = source.edge().toJSON();
-//                roadStartJson.put("timeStart", (long) beforeLast.time()/1000);
-//                roadStartJson.put("roadId", source.edge().base().id());
-//                roadStartJson.put("roadRefId", source.edge().base().refid());
-//                roadStartJson.put("fractionStart", source.fraction());
-//                roadStartJson.put("distance", (target.fraction() - source.fraction()) * source.edge().length());
+                listPoints += createTemporalPoint(estimateRoute.source().geometry(),
+                                beforeLast.time());
                 
-                String startPointCoord = GeometryEngine.geometryToWkt(source.geometry(),
-                        WktExportFlags.wktExportPoint);
-                startPointCoord += "@" + ((long) beforeLast.time() / 1000);
-                listPoints += startPointCoord + ";";
+                listPoints += SEP_TEMPORAL_TYPE;
                 
                 // End
-//                roadStartJson.put("timeEnd", (long) lastSample.time()/1000);
-//                roadStartJson.put("fractionEnd", target.fraction());
-//                jsonRoad.put(roadStartJson);
-                
-                String endPointCoord = GeometryEngine.geometryToWkt(target.geometry(),
-                        WktExportFlags.wktExportPoint);
-                endPointCoord += "@" + ((long) lastSample.time()/ 1000);
-                listPoints += endPointCoord;
+                Long timeEnd = lastSample.time();
+                if(!enoughtDiff(timeEnd, beforeLast.time())) {
+                    ++timeEnd;
+                }
+                listPoints += createTemporalPoint(estimateRoute.target().geometry(), 
+                        timeEnd);
                 
             } else {
                 long prevTime = beforeLast.time();
-//                double calculateDistance = 0;
+                long lastPrevTime = prevTime;
                 
                 // Start
                 final RoadPoint source = estimateRoute.source();
                 final Road endSource = estimateRoute.get(0);
                 final double startSegmentLenght = (1 - source.fraction()) * endSource.length();
-//                final JSONObject roadStartJson = endSource.toJSON();
-//                roadStartJson.put("roadId", endSource.base().id());
-//                roadStartJson.put("roadRefId", endSource.base().refid());
-//                roadStartJson.put("timeStart", (long) prevTime/1000);
-//                roadStartJson.put("fractionStart", source.fraction());
-//                roadStartJson.put("fractionEnd", 1);
-//                roadStartJson.put("distance", startSegmentLenght);
-//                calculateDistance += startSegmentLenght;
                 
-                String startPointCoord = GeometryEngine.geometryToWkt(source.geometry(),
-                        WktExportFlags.wktExportPoint);
-                startPointCoord += "@" + ((long) prevTime/1000);
-                listPoints += startPointCoord + ";";
+                listPoints += createTemporalPoint(source.geometry(), prevTime);
                 
                 prevTime = prevTime + (long) (startSegmentLenght / speedMs);
-//                roadStartJson.put("timeEnd", ((long) prevTime/1000));
-//                jsonRoad.put(roadStartJson);
-                
-                String endStartPointCoord = GeometryEngine.geometryToWkt(
-                        endSource.geometry().getPoint(endSource.geometry().getPointCount()-1),
-                        WktExportFlags.wktExportPoint);
-                endStartPointCoord += "@" + ((long) prevTime/1000);
-                listPoints += endStartPointCoord + ";";
+                if(enoughtDiff(lastPrevTime, prevTime)) {
+                    lastPrevTime = prevTime;
+                    
+                    listPoints += SEP_TEMPORAL_TYPE;
+                    listPoints += createTemporalPoint(
+                                endSource.geometry().getPoint(
+                                        endSource.geometry().getPointCount()-1), 
+                                prevTime);
+                }
                 
                 
                 // Other point
                 if(estimateRoute.size() > 2) {
                     for(int index = 1; index < estimateRoute.size()-1; ++index) {
-                        // Vérifier que la "currentRoad.length()" prend bien en compte le fait que l'on ne fait peut-être pas toute la route
-                        // Je pense que c'est bon pour les routes au milieu mais qu'il faut faire des exceptions pour la premire et la dernière
                         final Road currentRoad = estimateRoute.get(index);
-//                        final JSONObject roadJson = currentRoad.toJSON();
-                        
-//                        roadJson.put("roadId", currentRoad.base().id());
-//                        roadJson.put("roadRefId", currentRoad.base().refid());
-//                        roadJson.put("fractionStart", 0);
-//                        roadJson.put("fractionEnd", 1);
-//                        roadJson.put("distance", currentRoad.length());
-//                        roadJson.put("timeStart", (long) prevTime/1000);
                         
                         prevTime = prevTime + (long) (currentRoad.length() / speedMs);
-//                        roadJson.put("timeEnd", (long) prevTime/1000);
-//                        jsonRoad.put(roadJson);
+                        if(!enoughtDiff(lastPrevTime, prevTime)) {
+                            continue;
+                        }
+                        lastPrevTime = prevTime;
                         
-                        String endCurrentPointCoord = GeometryEngine.geometryToWkt(
-                                currentRoad.geometry().getPoint(currentRoad.geometry().getPointCount()-1),
-                                WktExportFlags.wktExportPoint);
-                        endCurrentPointCoord += "@" + ((long) prevTime/1000);
-                        listPoints += endCurrentPointCoord + ";";
-//                        jsonPoint.put(endCurrentPointCoord);
+                        listPoints += SEP_TEMPORAL_TYPE;
+                        listPoints += createTemporalPoint(
+                                currentRoad.geometry().getPoint(
+                                        currentRoad.geometry().getPointCount()-1),
+                                prevTime);
+                        
                     }
                 }
                 
                 // End point
-                final RoadPoint target = estimateRoute.target();
-                final Road endRoad = estimateRoute.get(estimateRoute.size()-1);
-//                final double endSegmentLenght = target.fraction() * endRoad.length();
-//                final JSONObject roadEndJson = endRoad.toJSON();
-//                roadEndJson.put("roadId", target.edge().base().id());
-//                roadEndJson.put("roadRefId", target.edge().base().refid());
-//                roadEndJson.put("timeStart", (long) prevTime/1000);
-//                roadEndJson.put("fractionStart", 0);
-//                roadEndJson.put("fractionEnd", target.fraction());
-//                roadEndJson.put("distance", endSegmentLenght);
-//                calculateDistance += endSegmentLenght;
-                
-                // Potentiellement un doublon !
-                String endPointCoord = GeometryEngine.geometryToWkt(endRoad.geometry().getPoint(0),
-                        WktExportFlags.wktExportPoint);
-                endPointCoord += "@" + ((long) prevTime/1000);
-                listPoints += endPointCoord + ";";
-                
-//                prevTime = prevTime + (long) (endSegmentLenght / speedMs);
-//                roadEndJson.put("timeEndCalculated", (long) prevTime/1000);
-//                roadEndJson.put("timeEnd", ((long) lastSample.time()/1000));
-//                jsonRoad.put(roadEndJson);
-                
-                String endEndPointCoord = GeometryEngine.geometryToWkt(target.geometry(),
-                        WktExportFlags.wktExportPoint);
-                endEndPointCoord += "@" + ((long) lastSample.time()/1000);
-                listPoints += endEndPointCoord;
-//                jsonPoint.put(endEndPointCoord);
-                
-                
-//                json.put("distanceCalculee", calculateDistance);
+                if(enoughtDiff(lastPrevTime, lastSample.time())) {
+                    listPoints += SEP_TEMPORAL_TYPE;
+                    listPoints += createTemporalPoint(estimateRoute.target().geometry(), 
+                                    lastSample.time());
+                }
             }
-            result.put("route_time", listPoints);
-//            json.put("timeRoad", jsonRoad);
-//            json.put("timeCoordinate", jsonPoint);
+            result.put("route_time", "[" + listPoints + ")");
+        } else {
+            result.put("route_time", "[" + result.get("point") + SEP_SPATIO_TIME + formatDate(lastSample.time()) + "]");
+            result.put("timeDiff", "0");
         }
         
-        
         return result;
+    }
+    
+    private String createTemporalPoint(final Point point, final Long time) {
+        return GeometryEngine.geometryToWkt(point, WktExportFlags.wktExportPoint) + 
+                SEP_SPATIO_TIME + 
+                formatDate(time);
+    }
+    
+    private String formatDate(final long timestamp) {
+        return DATE_FORMAT.format(new Date(timestamp));
+    }
+    
+    private boolean enoughtDiff(final long time1, final long time2) {
+        return Math.abs(time1-time2) >= 1000;
     }
     
 }
