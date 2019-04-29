@@ -8,6 +8,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
@@ -15,11 +17,14 @@ import java.util.Properties;
  */
 public class PostgresPublisher {
     
+    private final static Logger logger = LoggerFactory.getLogger(PostgresPublisher.class);
+    
     private final String host;
     private final int port;
     private final String database;
     private final String user;
     private final String password;
+    private boolean isOpen = false;
 
     private Connection connection = null;
 
@@ -61,12 +66,14 @@ public class PostgresPublisher {
     public void open() throws SourceException {
         try {
             String url = "jdbc:postgresql://" + host + ":" + port + "/" + database;
-            Properties props = new Properties();
+            final Properties props = new Properties();
             props.setProperty("user", user);
             props.setProperty("password", password);
             // props.setProperty("ssl","true");
             connection = DriverManager.getConnection(url, props);
             connection.setAutoCommit(true);
+            
+            isOpen = isOpen();
         } catch (SQLException e) {
             throw new SourceException("Opening PostgreSQL connection failed: " + e.getMessage(), e);
         }
@@ -87,19 +94,34 @@ public class PostgresPublisher {
     }
     
     public PreparedStatement prepare(final String strRequest) throws SQLException, ClassNotFoundException {
-        return connection.prepareStatement(strRequest);
+        if(isOpen) {
+            return connection.prepareStatement(strRequest);
+        } else {
+            logger.info("Impossible de préparer la requête, la connexion est fermée");
+        }
+        return null;
     }
 
     public boolean execute(final String statement)  throws SQLException, ClassNotFoundException {
-        final Statement st = connection.createStatement(1005, 1008);
-        st.setFetchSize(100);
-        return st.execute(statement);
+        if(isOpen) {
+            final Statement st = connection.createStatement(1005, 1008);
+            st.setFetchSize(100);
+            return st.execute(statement);
+        } else {
+            logger.info("Impossible d'exécuter la requête, la connexion est fermée");
+        }
+        return false;
     }
     
     public ResultSet getResultSet(final String statement) throws SQLException, ClassNotFoundException {
-        final Statement st = connection.createStatement(1005, 1008);
-        st.setFetchSize(100);
-        return st.executeQuery(statement);
+        if(isOpen) {
+            final Statement st = connection.createStatement(1005, 1008);
+            st.setFetchSize(100);
+            return st.executeQuery(statement);
+        } else {
+            logger.info("Impossible d'exécuter la requête, la connexion est fermée");
+        }
+        return null;
     }
     
 }

@@ -52,6 +52,24 @@ public class CustomMatcherSample extends MatcherSample {
     
     public CustomMatcherSample(final JSONObject json) throws JSONException {
         super(json);
+        if(json.has("trip_id")) {
+            allInformations.put("trip_id", json.getString("trip_id")); 
+        }
+        if(json.has("start_date")) {
+            allInformations.put("start_date", json.getString("start_date")); 
+        }
+        if(json.has("route_id")) {
+            allInformations.put("route_id", json.getString("route_id")); 
+        }
+        if(json.has("direction_id")) {
+            allInformations.put("direction_id", json.getString("direction_id")); 
+        }
+        if(json.has("bearing")) {
+            allInformations.put("bearing", json.getString("bearing")); 
+        }
+        if(json.has("stop_id")) {
+            allInformations.put("stop_id", json.getString("stop_id")); 
+        }
     }
     
     
