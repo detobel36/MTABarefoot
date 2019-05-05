@@ -190,4 +190,8 @@ public class MTABarefoot {
         return true;
     }
     
+    public static void printOutputStats() {
+        outputPublisher.printStats();
+    }
+    
 }

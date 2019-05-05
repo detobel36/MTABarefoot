@@ -83,6 +83,8 @@ public class TemporaryMemory<E extends TemporaryElement<E>> {
         public Publisher<E> init(int port);
         
         public void reload();
+
+        public void printStats();
         
     };
 
@@ -136,6 +138,9 @@ public class TemporaryMemory<E extends TemporaryElement<E>> {
 
             @Override
             public void reload() { }
+
+            @Override
+            public void printStats() { }
         };
         this.cleaner.start();
     }

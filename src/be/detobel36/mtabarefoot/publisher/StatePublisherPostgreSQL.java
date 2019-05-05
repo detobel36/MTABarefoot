@@ -29,6 +29,9 @@ public class StatePublisherPostgreSQL implements TemporaryMemory.Publisher<Custo
     private PostgresPublisher postgresSource = null;
     private HashMap<String, Boolean> listRequest;
     
+    private Long totalTime = 0l;
+    private int totalRequest = 0;
+    private int totalData = 0;
     
     public StatePublisherPostgreSQL(final String requestPath) {
         loadRequest(requestPath);
@@ -85,7 +88,7 @@ public class StatePublisherPostgreSQL implements TemporaryMemory.Publisher<Custo
     }
     
     @Override
-    public void publish(String id, CustomTrackServer.State state) {
+    public void publish(final String id, final CustomTrackServer.State state) {
         final HashMap<String, String> pointInfos = state.inner.toHashMap();
         pointInfos.put("id", id);
         
@@ -98,29 +101,38 @@ public class StatePublisherPostgreSQL implements TemporaryMemory.Publisher<Custo
                 }
                 try {
                     if(request.getValue()) { // If select
+                        final Long startTime = System.currentTimeMillis();
                         final ResultSet result = postgresSource.getResultSet(strRequest);
-                        String strResult = "";
+                        totalTime += (System.currentTimeMillis()-startTime);
+                        ++totalRequest;
+                        if(result != null) {
+                            String strResult = "";
 
-                        final int numCol = result.getMetaData().getColumnCount();
-                        while (result.next()) {
-                            for (int i = 1; i <= numCol; ++i) {
-                                strResult += result.getString(i) + " ";
+                            final int numCol = result.getMetaData().getColumnCount();
+                            while (result.next()) {
+                                for (int i = 1; i <= numCol; ++i) {
+                                    strResult += result.getString(i) + " ";
+                                }
+                                strResult += ";";
                             }
-                            strResult += ";";
-                        }
-                        if(MTABarefoot.viewQuery()) {
-                            logger.info("Result: " + strResult);
+                            if(MTABarefoot.viewQuery()) {
+                                logger.info("Result: " + strResult);
+                            }
                         }
                         
 
                     } else {
+                        final Long startTime = System.currentTimeMillis();
                         postgresSource.execute(strRequest);
+                        totalTime += (System.currentTimeMillis()-startTime);
+                        ++totalRequest;
                     }
                 } catch (SQLException | ClassNotFoundException ex) {
                     logger.error("Erreur avec la requête " + strRequest, ex);
                 }
             }
         });
+        ++totalData;
         
         if(MTABarefoot.viewQuery()) {
             logger.info(pointInfos.toString());
@@ -153,16 +165,7 @@ public class StatePublisherPostgreSQL implements TemporaryMemory.Publisher<Custo
 
     @Override
     public void delete(String id, long time) {
-//            try {
-//                final JSONObject json = new JSONObject();
-//                json.put("id", id);
-//                json.put("time", time);
-//                queue.put(json.toString());
-//                logger.debug("delete object {}", id);
-//            } catch (InterruptedException | JSONException e) {
-//                logger.error("delete failed: {}", e.getMessage());
-//                e.printStackTrace();
-//            }
+        // Do nothing
     }
 
     @Override
@@ -198,6 +201,12 @@ public class StatePublisherPostgreSQL implements TemporaryMemory.Publisher<Custo
             logger.info("Open PostgresSource");
             postgresSource.open();
         }
+    }
+
+    @Override
+    public void printStats() {
+        logger.info("Moyenne d'une req SQL: " + (totalTime/totalRequest) + " ms");
+        logger.info("Moyenne par data: " + (totalTime/totalData) + " ms");
     }
     
 }

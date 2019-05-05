@@ -1,5 +1,6 @@
 package be.detobel36.mtabarefoot.input_server;
 
+import be.detobel36.mtabarefoot.MTABarefoot;
 import be.detobel36.mtabarefoot.TemporaryMemory;
 import com.bmwcarit.barefoot.roadmap.RoadMap;
 import com.google.transit.realtime.GtfsRealtime;
@@ -99,6 +100,7 @@ public class SocketFetchData extends CustomTrackServer {
                             "(" + ((System.currentTimeMillis()-startTime)/1000.0) + 
                             " sec)");
                     logger.info("Temps moyen de traitement d'un élément: " + (totalTimeTreatInfo/nbrElement));
+                    MTABarefoot.printOutputStats();
                     logger.info(" ");
                     logger.info(" ");
                     logger.info("----------------------------------------------");

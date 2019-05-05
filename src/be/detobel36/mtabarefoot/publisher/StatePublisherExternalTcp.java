@@ -74,5 +74,8 @@ public class StatePublisherExternalTcp extends Thread implements TemporaryMemory
 
     @Override
     public void reload() { }
+
+    @Override
+    public void printStats() { }
     
 }
