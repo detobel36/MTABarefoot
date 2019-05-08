@@ -40,9 +40,9 @@ public class SocketFetchData extends CustomTrackServer {
     public void runServer() throws RuntimeException {
         final File socketFile = new File(SOCKET_PATH) ;
         try {
-            final AFUNIXSocket sock = AFUNIXSocket.newInstance() ;
-            sock.connect(new AFUNIXSocketAddress(socketFile)) ;
-            final InputStream is = sock.getInputStream() ;
+            final AFUNIXSocket sock = AFUNIXSocket.newInstance();
+            sock.connect(new AFUNIXSocketAddress(socketFile));
+            final InputStream is = sock.getInputStream();
             System.gc();
             while(true) {
                 try {
